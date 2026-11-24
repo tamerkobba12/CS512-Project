@@ -35,7 +35,6 @@ print("\nTotal NaN values:", data.isna().sum().sum())
 
 # ============================================================
 # 2b. ADDED: REMOVE MOLECULES THAT HAVE NO DESCRIPTORS
-# ============================================================
 
 # About half of the molecules have no descriptors at all (every X is NaN).
 # Without this step, step 4 would remove almost every X column.
@@ -46,7 +45,6 @@ data = data[~no_descriptors]
 
 print("\nAfter removing molecules without descriptors:")
 print("Shape:", data.shape)
-
 
 # ============================================================
 # 3. REMOVE ROWS WHERE Y (IC50) IS NaN
@@ -68,7 +66,7 @@ x_columns = data.columns[1:]
 
 nan_fraction = data[x_columns].isna().mean()
 
-columns_to_remove = nan_fraction[nan_fraction > 0.50].index
+columns_to_remove = nan_fraction[nan_fraction > 0.5].index
 
 data = data.drop(columns=columns_to_remove)
 
@@ -230,6 +228,40 @@ X_test = X_test.drop(columns=constant_after_imputation)
 
 
 # ============================================================
+# 8b. ADDED: REMOVE HIGHLY CORRELATED X COLUMNS
+# ============================================================
+
+# Two descriptors that move almost together carry the same information. A linear
+# model can then give them huge opposite coefficients (for example -12 and +9)
+# that cancel on the training molecules but explode on a molecule where the two
+# descriptors differ. Of every group of such descriptors, the first one (in column
+# order) is kept.
+#
+# The correlation is measured on the TRAINING molecules only, and the same columns
+# are then removed from the validation and test sets.
+
+CORRELATION_LIMIT = 0.95       # remove a column if |r| with a kept column is above this
+
+correlation = X_train.corr().abs().to_numpy()
+
+kept = []
+for j in range(correlation.shape[0]):
+    if not kept or correlation[j, kept].max() <= CORRELATION_LIMIT:
+        kept.append(j)
+
+kept_columns = X_train.columns[kept]
+number_removed = X_train.shape[1] - len(kept_columns)
+
+X_train = X_train[kept_columns]
+X_valid = X_valid[kept_columns]
+X_test = X_test[kept_columns]
+
+print("Highly correlated columns removed (|r| >", CORRELATION_LIMIT, "):", number_removed)
+print("Number of X variables remaining:", X_train.shape[1])
+
+
+
+# ============================================================
 # 9. SCALE THE X VARIABLES
 # ============================================================
 
@@ -277,12 +309,13 @@ print("\nRemaining NaN values:",
 out = ROOT / "data" / "processed"
 out.mkdir(parents=True, exist_ok=True)
 
-X_train.to_csv(out / "TrainX.csv", index=False)
-Y_train.to_frame().to_csv(out / "TrainY.csv", index=False)
+X_train.to_csv(out / "Train-Data.csv", header=False, index=False)
+Y_train.to_frame().to_csv(out / "Train-pIC50.csv", header=False, index=False)
 
-X_valid.to_csv(out / "ValidX.csv", index=False)
-Y_valid.to_frame().to_csv(out / "ValidY.csv", index=False)
+X_valid.to_csv(out / "Validation-Data.csv", header=False, index=False)
+Y_valid.to_frame().to_csv(out / "Validation-pIC50.csv", header=False, index=False)
 
-X_test.to_csv(out / "TestX.csv", index=False)
-Y_test.to_frame().to_csv(out / "TestY.csv", index=False)
-print("\nSaved: TrainX.csv, TrainY.csv, ValidX.csv, ValidY.csv, TestX.csv, TestY.csv")
+X_test.to_csv(out / "Test-Data.csv", header=False, index=False)
+Y_test.to_frame().to_csv(out / "Test-pIC50.csv", header=False, index=False)
+print("\nSaved (no header row): Train-Data.csv, Train-pIC50.csv, Validation-Data.csv, "
+      "Validation-pIC50.csv, Test-Data.csv, Test-pIC50.csv")
