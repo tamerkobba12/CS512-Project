@@ -8,7 +8,6 @@ genetic algorithm (GA) to choose which descriptors each model uses.
 - Tamer Al Kobba
 - Kyle Bertrand
 - Mitchell Itzaina
-- Darian White
 
 ## Status
 
